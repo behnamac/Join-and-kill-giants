@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections;
 using DG.Tweening;
 using Levels;
 using Storage;
@@ -10,17 +10,16 @@ namespace Controllers
 {
     public class UiController : MonoBehaviour
     {
-        #region PUBLIC PROPS
+        #region Public Properties
 
-        public static UiController instance { get; private set; }
+        public static UiController Instance { get; private set; }
 
         #endregion
 
-        #region SERIALIZE FIELDS
+        #region Serialized Fields
 
         [Header("Panels")]
         [SerializeField] private GameObject gamePlayPanel;
-
         [SerializeField] private GameObject levelStartPanel;
         [SerializeField] private GameObject levelCompletePanel;
         [SerializeField] private GameObject levelFailPanel;
@@ -28,7 +27,6 @@ namespace Controllers
 
         [Header("Coin")]
         [SerializeField] private Image coinIcon;
-
         [SerializeField] private Text coinText;
 
         [Header("Level")]
@@ -36,56 +34,109 @@ namespace Controllers
 
         [Header("Settings Value")]
         [SerializeField] private int hideTutorialLevelIndex;
-
         [SerializeField] private float levelCompletePanelShowDelayTime;
         [SerializeField] private float levelFailPanelShowDelayTime;
 
         #endregion
 
-        #region PRIVATE FIELDS
+        #region Private Fields
 
         private int _levelFinishTotalCount;
 
         #endregion
 
-        #region PRIVATE METHODS
+        #region Initialization and Button Listeners
 
-        private void Initializer()
+        private void InitializeUI()
         {
-            // Level Start
-            levelStartPanel.GetComponentInChildren<Button>().onClick.AddListener(() =>
-            {
-                levelStartPanel.SetActive(false);
-                LevelManager.instance.LevelStart();
-            });
-
-            // Level Complete
-            levelCompletePanel.GetComponentInChildren<Button>().onClick.AddListener(() =>
-            {
-                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-            });
-
-            // Level Fail
-            levelFailPanel.GetComponentInChildren<Button>().onClick.AddListener(() =>
-            {
-                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-            });
-
-            // Set TotalCoin;
-            coinText.text = PlayerPrefsController.GetTotalCurrency().ToString();
-
-            // Set Level Number
-            var levelNumber = PlayerPrefsController.GetLevelNumber() + 1;
-            levelText.text = $"LEVEL {levelNumber}";
-            
+            SetButtonListeners();
+            UpdateCoinDisplay();
+            UpdateLevelDisplay();
         }
 
-        private void ShowTutorial()
+        private void SetButtonListeners()
         {
-            if (PlayerPrefsController.GetLevelIndex() > hideTutorialLevelIndex) return;
-            tutorialPanel.SetActive(true);
+            levelStartPanel.GetComponentInChildren<Button>().onClick.AddListener(StartLevel);
+            levelCompletePanel.GetComponentInChildren<Button>().onClick.AddListener(ReloadScene);
+            levelFailPanel.GetComponentInChildren<Button>().onClick.AddListener(ReloadScene);
+        }
 
-            Invoke(nameof(HideTutorial), 3);
+        private void StartLevel()
+        {
+            levelStartPanel.SetActive(false);
+            LevelManager.Instance.LevelStart();
+        }
+
+        private void ReloadScene()
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        #endregion
+
+        #region Public Methods
+
+        public void AddCoin(int coinCount)
+        {
+            var totalCoin = PlayerPrefsController.GetTotalCurrency();
+            totalCoin += coinCount;
+            PlayerPrefsController.SetCurrency(totalCoin);
+            UpdateCoinDisplay();
+
+            AnimateCoinIcon();
+        }
+
+        public void AddCoin(int coinCount, Vector3 spawnPos)
+        {
+            AddCoin(coinCount);
+            StartCoroutine(SpawnCoinAnimation(coinCount, spawnPos));
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private void UpdateCoinDisplay()
+        {
+            coinText.text = PlayerPrefsController.GetTotalCurrency().ToString();
+        }
+
+        private void UpdateLevelDisplay()
+        {
+            int levelNumber = PlayerPrefsController.GetLevelNumber() + 1;
+            levelText.text = $"LEVEL {levelNumber}";
+        }
+
+        private void AnimateCoinIcon()
+        {
+            coinIcon.transform.DOScale(1.2f, 0.2f).SetEase(Ease.InBounce)
+                .OnComplete(() => coinIcon.transform.DOScale(Vector3.one, 0.2f).SetEase(Ease.InBounce));
+        }
+
+        private IEnumerator SpawnCoinAnimation(int coinCount, Vector3 spawnPoint)
+        {
+            for (int i = 0; i < coinCount; i++)
+            {
+                yield return new WaitForSeconds(0.1f);
+                var pos = Camera.main != null ? Camera.main.WorldToScreenPoint(spawnPoint) : Vector3.zero;
+                var coin = Instantiate(coinIcon, pos, Quaternion.identity, gamePlayPanel.transform);
+                coin.transform.DOMove(coinIcon.transform.position, 0.2f);
+                Destroy(coin.gameObject, 0.2f);
+            }
+        }
+
+        #endregion
+
+        #region Level Event Methods
+
+        private void OnLevelStart(Level levelData)
+        {
+            if (PlayerPrefsController.GetLevelIndex() <= hideTutorialLevelIndex)
+            {
+                tutorialPanel.SetActive(true);
+                Invoke(nameof(HideTutorial), 3);
+            }
+            gamePlayPanel.SetActive(true);
         }
 
         private void HideTutorial()
@@ -93,121 +144,59 @@ namespace Controllers
             tutorialPanel.SetActive(false);
         }
 
+        private void OnLevelComplete(Level levelData)
+        {
+            Invoke(nameof(ShowLevelCompletePanel), levelCompletePanelShowDelayTime);
+        }
+
         private void ShowLevelCompletePanel()
         {
-            if (tutorialPanel.activeSelf)
-            {
-                tutorialPanel.SetActive(false);
-            }
-
+            tutorialPanel.SetActive(false);
             levelCompletePanel.SetActive(true);
         }
-
-        private void ShowLevelFailPanel()
-        {
-            if (tutorialPanel.activeSelf)
-            {
-                tutorialPanel.SetActive(false);
-            }
-
-            levelFailPanel.SetActive(true);
-        }
-
-        #endregion
-
-        #region PUBLIC METHODS
-
-        public void AddCoin(int coinCount)
-        {
-
-            var totalCoin = PlayerPrefsController.GetTotalCurrency();
-
-            totalCoin += coinCount;
-
-            PlayerPrefsController.SetCurrency(totalCoin);
-
-            coinText.text = totalCoin.ToString();
-
-            coinIcon.transform.DOScale(1.2f, 0.2f).SetEase(Ease.InBounce).OnComplete(() =>
-            {
-                coinIcon.transform.DOScale(Vector3.one, 0.2f).SetEase(Ease.InBounce);
-            });
-        }
-
-        public void AddCoin(int coinCount, Vector3 spawnPos)
-        {
-            AddCoin(coinCount);
-            StartCoroutine(SpawnCoinCo(coinCount, spawnPos));
-        }
-        #endregion
-
-        #region CUSTOM EVENTS
 
         private void OnLevelFail(Level levelData)
         {
             Invoke(nameof(ShowLevelFailPanel), levelFailPanelShowDelayTime);
         }
 
-        private void OnLevelStart(Level levelData)
+        private void ShowLevelFailPanel()
         {
-            ShowTutorial();
-            gamePlayPanel.SetActive(true);
-        }
-
-        private void OnLevelComplete(Level levelData)
-        {
-            Invoke(nameof(ShowLevelCompletePanel), levelCompletePanelShowDelayTime);
-        }
-
-        private void OnLevelStageComplete(Level levelData, int stageIndex)
-        {
-            // TODO : IF DONT NEED THIS METHODS, YOU DONT REMOVE
-        }
-
-        private IEnumerator<WaitForSeconds> SpawnCoinCo(int coinCount, Vector3 spawnPoint)
-        {
-            for (int i = 0; i < coinCount; i++)
-            {
-                yield return new WaitForSeconds(0.1f);
-                Vector3 pos = Vector3.zero;
-                if (Camera.main != null)
-                {
-                    pos = Camera.main.WorldToScreenPoint(spawnPoint);
-                }
-
-                var coi = Instantiate(coinIcon, pos, Quaternion.identity,
-                    gamePlayPanel.transform);
-                coi.transform.DOMove(coinIcon.transform.position, 0.2f);
-                Destroy(coi.gameObject, 0.2f);
-            }
+            tutorialPanel.SetActive(false);
+            levelFailPanel.SetActive(true);
         }
 
         #endregion
 
-        #region UNITY EVENT METHODS
+        #region Unity Event Methods
 
         private void Awake()
         {
-            Initializer();
-
-            if (instance == null) instance = this;
+            if (Instance == null)
+            {
+                Instance = this;
+                InitializeUI();
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
         private void Start()
         {
-            LevelManager.onLevelStart += OnLevelStart;
-            LevelManager.onLevelComplete += OnLevelComplete;
-            LevelManager.onLevelFail += OnLevelFail;
-            LevelManager.onLevelStageComplete += OnLevelStageComplete;
+            LevelManager.OnLevelStart += OnLevelStart;
+            LevelManager.OnLevelComplete += OnLevelComplete;
+            LevelManager.OnLevelFail += OnLevelFail;
+            // Subscribe to other LevelManager events if necessary
         }
-
 
         private void OnDestroy()
         {
-            LevelManager.onLevelStart -= OnLevelStart;
-            LevelManager.onLevelComplete -= OnLevelComplete;
-            LevelManager.onLevelFail -= OnLevelFail;
-            LevelManager.onLevelStageComplete -= OnLevelStageComplete;
+            LevelManager.OnLevelStart -= OnLevelStart;
+            LevelManager.OnLevelComplete -= OnLevelComplete;
+            LevelManager.OnLevelFail -= OnLevelFail;
+            // Unsubscribe from other LevelManager events if necessary
         }
 
         #endregion

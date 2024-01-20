@@ -9,6 +9,10 @@ namespace Player
     {
         private PlayerMoveController _playerMove;
 
+        private const string ObstacleTag = "Obstacle";
+        private const string FinishLineTag = "FinishLine";
+        private const string PostLevelTag = "X";
+
         private void Awake()
         {
             _playerMove = GetComponent<PlayerMoveController>();
@@ -16,34 +20,53 @@ namespace Player
 
         private void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponent<PlayerMoveController>())
+            HandlePlayerCollision(other);
+            HandleGiantCollision(other);
+            HandleObstacleCollision(other);
+            HandleFinishLineCollision(other);
+            HandlePostLevelCollision(other);
+        }
+
+        private void HandlePlayerCollision(Collider other)
+        {
+            var otherPlayerMove = other.GetComponent<PlayerMoveController>();
+            if (otherPlayerMove != null && _playerMove.ActiveMove && !otherPlayerMove.ActiveMove)
             {
-                var otherPlayer = other.GetComponent<PlayerMoveController>();
-                if (_playerMove.activeMove && !otherPlayer.activeMove)
-                {
-                    var parent = transform.parent;
-                    otherPlayer.Active(parent, parent, _playerMove.playerContainer);
-                }
+                var parent = transform.parent;
+                otherPlayerMove.Active(parent, parent, _playerMove.PlayerContainer);
             }
-            else if (other.GetComponent<GiantController>())
+        }
+
+        private void HandleGiantCollision(Collider other)
+        {
+            var enemy = other.GetComponent<GiantController>();
+            if (enemy != null && !enemy.Active)
             {
-                var enemy = other.GetComponent<GiantController>();
-                if (!enemy.active)
-                {
-                    _playerMove.playerContainer.AddGiant(enemy);
-                }
+                _playerMove.PlayerContainer.AddGiant(enemy);
             }
-            else if(other.gameObject.CompareTag($"Obstcle"))
+        }
+
+        private void HandleObstacleCollision(Collider other)
+        {
+            if (other.gameObject.CompareTag(ObstacleTag))
             {
                 _playerMove.Dead();
             }
-            else if(other.gameObject.CompareTag($"FinishLine"))
+        }
+
+        private void HandleFinishLineCollision(Collider other)
+        {
+            if (other.gameObject.CompareTag(FinishLineTag))
             {
-                LevelManager.instance.LevelStageComplete();
+                LevelManager.Instance.LevelStageComplete();
             }
-            else if(other.gameObject.CompareTag($"X"))
+        }
+
+        private void HandlePostLevelCollision(Collider other)
+        {
+            if (other.gameObject.CompareTag(PostLevelTag))
             {
-                _playerMove.playerContainer.AddPostLevel();
+                _playerMove.PlayerContainer.AddPostLevel();
                 other.enabled = false;
             }
         }

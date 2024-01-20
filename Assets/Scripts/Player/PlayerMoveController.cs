@@ -7,22 +7,27 @@ namespace Player
     [RequireComponent(typeof(NavMeshAgent))]
     public class PlayerMoveController : MonoBehaviour
     {
-        [SerializeField] private Renderer meshRenderer;
-        [SerializeField] private Color activeColor = Color.blue;
+        [SerializeField, Tooltip("Renderer for the player mesh.")]
+        private Renderer meshRenderer;
+
+        [SerializeField, Tooltip("Color to change to when the player is active.")]
+        private Color activeColor = Color.blue;
 
         private NavMeshAgent _navMeshAgent;
         private Transform _targetMove;
-        public bool activeMove { get; private set; }
-        public PlayerContainerController playerContainer { get; set; }
+
+        public bool ActiveMove { get; private set; }
+        public PlayerContainerController PlayerContainer { get; private set; }
 
         private void Awake()
         {
             _navMeshAgent = GetComponent<NavMeshAgent>();
+            PlayerContainer = FindObjectOfType<PlayerContainerController>();
         }
 
         private void Update()
         {
-            if (activeMove)
+            if (ActiveMove)
             {
                 Move();
             }
@@ -30,21 +35,33 @@ namespace Player
 
         private void Move()
         {
-            _navMeshAgent.SetDestination(_targetMove.position);
+            if (_targetMove != null)
+            {
+                _navMeshAgent.SetDestination(_targetMove.position);
+            }
         }
 
-        public void Active(Transform parent,Transform target, PlayerContainerController container)
+        /// <summary>
+        /// Activates the player and sets its target and container.
+        /// </summary>
+        public void Active(Transform parent, Transform target, PlayerContainerController container)
         {
             transform.SetParent(parent);
             meshRenderer.material.DOColor(activeColor, 0.6f);
             _targetMove = target;
-            playerContainer = container;
-            activeMove = true;
+            PlayerContainer = container;
+            ActiveMove = true;
         }
 
+        /// <summary>
+        /// Handles the player's death and checks the number of remaining players.
+        /// </summary>
         public void Dead()
         {
-            playerContainer.CheckNumberPlayers();
+            if (PlayerContainer != null)
+            {
+                PlayerContainer.CheckNumberPlayers();
+            }
             Destroy(gameObject);
         }
     }

@@ -4,57 +4,65 @@ namespace Controllers
 {
     public class CameraController : MonoBehaviour
     {
-        public static CameraController instance { get; private set; }
-
-
-        #region SERIALIZE FIELDS
+        public static CameraController Instance { get; private set; }
 
         [SerializeField] private Transform target;
         [SerializeField] private Vector3 offset;
         [SerializeField] private float followSpeed = 0.1f;
         [SerializeField] private bool xPositionLock;
         [SerializeField] private bool isTargetLook;
-        #endregion
-
-        #region PRIVATE METHODS
 
         private void Initialize()
         {
-            // SET DEFAULT OFFSET
-            offset = transform.position - target.position;
+            // Set the default offset if target is not null
+            if (target != null)
+            {
+                offset = transform.position - target.position;
+            }
+            else
+            {
+                Debug.LogWarning("Target is not assigned to CameraController");
+            }
         }
-        
+
         private void SmoothFollow()
         {
-            var targetPos = target.position + offset;
+            if (target == null) return;
 
+            var targetPos = target.position + offset;
             if (xPositionLock)
             {
                 targetPos.x = transform.position.x;
             }
 
-            var smoothFollow = Vector3.Lerp(transform.position, targetPos, followSpeed);
+            transform.position = Vector3.Lerp(transform.position, targetPos, followSpeed);
 
-            transform.position = smoothFollow;
-
-            if (!isTargetLook) return;
-
-            transform.LookAt(target);
+            if (isTargetLook)
+            {
+                transform.LookAt(target);
+            }
         }
-
-        #endregion
-
-        #region UNITY EVENT METHODS
 
         private void Awake()
         {
-            if (instance == null) instance = this;
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+            }
         }
 
-        private void Start() => Initialize();
+        private void Start()
+        {
+            Initialize();
+        }
 
-        private void LateUpdate() => SmoothFollow();
-
-        #endregion
+        private void LateUpdate()
+        {
+            SmoothFollow();
+        }
     }
 }

@@ -4,20 +4,37 @@ namespace Enemy
 {
     public class GiantSliseController : MonoBehaviour
     {
-        [SerializeField] private Rigidbody[] diactiveObjects;
-        [SerializeField] private GiantController giant;
+        [SerializeField, Tooltip("Array of Rigidbody objects to be deactivated.")]
+        private Rigidbody[] diactiveObjects;
+
+        [SerializeField, Tooltip("Reference to the GiantController component.")]
+        private GiantController giant;
+
+        private const string RespawnTag = "Respawn";
+
         private void OnTriggerEnter(Collider other)
         {
-            if (other.gameObject.CompareTag("Respawn"))
+            if (other.gameObject.CompareTag(RespawnTag))
             {
-                for (int i = 0; i < diactiveObjects.Length; i++)
+                if (diactiveObjects != null)
                 {
-                    diactiveObjects[i].transform.SetParent(null);
-                    diactiveObjects[i].isKinematic = false;
-                    diactiveObjects[i].useGravity = true;
-                    diactiveObjects[i].GetComponent<Collider>().isTrigger = false;
+                    foreach (var obj in diactiveObjects)
+                    {
+                        if (obj != null)
+                        {
+                            obj.transform.SetParent(null);
+                            obj.isKinematic = false;
+                            obj.useGravity = true;
+                            var collider = obj.GetComponent<Collider>();
+                            if (collider != null)
+                            {
+                                collider.isTrigger = false;
+                            }
+                        }
+                    }
                 }
-                giant.DeadSlise();
+
+                giant?.DeadSlice();
             }
         }
     }

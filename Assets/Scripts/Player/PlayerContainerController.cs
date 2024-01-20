@@ -7,9 +7,14 @@ namespace Player
 {
     public class PlayerContainerController : MonoBehaviour
     {
-        [SerializeField] private float speedForward;
-        [SerializeField] private float speedHorizontal;
-        [SerializeField] private float maxHorizontalMove;
+        [SerializeField, Tooltip("Forward speed of the player.")]
+        private float speedForward;
+
+        [SerializeField, Tooltip("Horizontal speed of the player.")]
+        private float speedHorizontal;
+
+        [SerializeField, Tooltip("Maximum horizontal movement limit.")]
+        private float maxHorizontalMove;
 
         private bool _canMove;
         private float _mouseXStartPosition;
@@ -20,17 +25,13 @@ namespace Player
         private float _postLevelValue;
         private int _postLevelXNumber;
 
-        public GiantController giant { get; private set; }
+        private const int PostLevelMaxCount = 10;
 
-        #region Unity Functions
+        public GiantController Giant { get; private set; }
 
         private void Awake()
         {
-            LevelManager.onLevelStart += OnLevelStart;
-            LevelManager.onLevelLoad += OnLoadLevel;
-            LevelManager.onLevelComplete += OnLevelComplete;
-            LevelManager.onLevelStageComplete += OnLevelStageComplete;
-            LevelManager.onLevelFail += OnLevelFail;
+            SubscribeToLevelEvents();
         }
 
         private void Update()
@@ -43,70 +44,60 @@ namespace Player
 
         private void OnDestroy()
         {
-            LevelManager.onLevelStart -= OnLevelStart;
-            LevelManager.onLevelLoad -= OnLoadLevel;
-            LevelManager.onLevelComplete -= OnLevelComplete;
-            LevelManager.onLevelStageComplete -= OnLevelStageComplete;
-            LevelManager.onLevelFail -= OnLevelFail;
+            UnsubscribeFromLevelEvents();
         }
 
-        #endregion
-
-        #region Private Functions
-        
         private void Movement()
         {
-            //Forward Move
+            // Forward Movement
             transform.Translate(0, 0, speedForward * Time.deltaTime);
-            
-            //Values
-            _xMove -= TouchSwip() * speedHorizontal * Time.deltaTime;
-            _xMove = Mathf.Clamp(_xMove, -maxHorizontalMove, maxHorizontalMove);
-            var playerTransform = transform;
-            var playerPosition = playerTransform.position;
-            
-            //Horizontal Move
+
+            // Horizontal Movement
+            _xMove = Mathf.Clamp(_xMove - TouchSwipe() * speedHorizontal * Time.deltaTime, -maxHorizontalMove, maxHorizontalMove);
+            var playerPosition = transform.position;
             playerPosition.x = _xMove;
-            playerTransform.position = playerPosition;
+            transform.position = playerPosition;
         }
 
-        private float TouchSwip()
+        private float TouchSwipe()
         {
-            // MOUSE DOWN
-            if (Input.GetMouseButtonDown(0)) _mouseXStartPosition = Input.mousePosition.x;
+            if (Input.GetMouseButtonDown(0))
+            {
+                _mouseXStartPosition = Input.mousePosition.x;
+            }
 
-            // MOUSE ON PRESS
             if (Input.GetMouseButton(0))
             {
                 _swipeDelta = Input.mousePosition.x - _mouseXStartPosition;
                 _mouseXStartPosition = Input.mousePosition.x;
             }
 
-            // MOUSE UP
-            if (Input.GetMouseButtonUp(0)) _swipeDelta = 0;
+            if (Input.GetMouseButtonUp(0))
+            {
+                _swipeDelta = 0;
+            }
 
             return _swipeDelta;
         }
 
-        #endregion
-
-        #region Public Functions
-
-        public void AddGiant(GiantController gia)
+        public void AddGiant(GiantController giant)
         {
-            if (giant != null)
+            if (Giant != null)
             {
                 RemoveGiant();
             }
 
-            gia.Active(Vector3.zero, transform);
-            giant = gia;
+            giant.Activate(Vector3.zero, transform);
+            Giant = giant;
         }
 
         public void RemoveGiant()
         {
-            giant.transform.SetParent(null);
-            giant = null;
+            if (Giant != null)
+            {
+                Giant.transform.SetParent(null);
+                Giant = null;
+            }
         }
 
         public void CheckNumberPlayers()
@@ -114,7 +105,7 @@ namespace Player
             var players = GetComponentsInChildren<PlayerMoveController>();
             if (players.Length <= 1)
             {
-                LevelManager.instance.LevelFail();
+                LevelManager.Instance.LevelFail();
             }
         }
 
@@ -122,37 +113,56 @@ namespace Player
         {
             _postLevelXNumber++;
             _activePlayerNumber -= _postLevelValue;
-            if (_postLevelXNumber >= 10 || _activePlayerNumber <= 0)
+            if (_postLevelXNumber >= PostLevelMaxCount || _activePlayerNumber <= 0)
             {
-                LevelManager.instance.LevelComplete();
+                LevelManager.Instance.LevelComplete();
             }
         }
 
-        #endregion
+        private void SubscribeToLevelEvents()
+        {
+            LevelManager.OnLevelStart += OnLevelStart;
+            LevelManager.OnLevelLoad += OnLoadLevel;
+            LevelManager.OnLevelComplete += OnLevelComplete;
+            LevelManager.OnLevelStageComplete += OnLevelStageComplete;
+            LevelManager.OnLevelFail += OnLevelFail;
+        }
 
-        #region EVENTs
+        private void UnsubscribeFromLevelEvents()
+        {
+            LevelManager.OnLevelStart -= OnLevelStart;
+            LevelManager.OnLevelLoad -= OnLoadLevel;
+            LevelManager.OnLevelComplete -= OnLevelComplete;
+            LevelManager.OnLevelStageComplete -= OnLevelStageComplete;
+            LevelManager.OnLevelFail -= OnLevelFail;
+        }
 
         private void OnLevelStart(Level level)
         {
             _canMove = true;
+            InitializePlayers();
+        }
+
+        private void InitializePlayers()
+        {
             var players = GetComponentsInChildren<PlayerMoveController>();
-            for (int i = 0; i < players.Length; i++)
+            foreach (var player in players)
             {
-                var thisTransform = transform;
-                players[i].Active(thisTransform, thisTransform, this);
+                player.Active(transform, transform, this);
             }
         }
 
         private void OnLoadLevel(Level level)
         {
             _allPlayerNumber = FindObjectsOfType<PlayerMoveController>().Length;
-            _postLevelValue = (float)_allPlayerNumber / 10;
+            _postLevelValue = (float)_allPlayerNumber / PostLevelMaxCount;
         }
 
         private void OnLevelComplete(Level level)
         {
             _canMove = false;
         }
+
         private void OnLevelStageComplete(Level level, int index)
         {
             _activePlayerNumber = GetComponentsInChildren<PlayerMoveController>().Length;
@@ -162,7 +172,5 @@ namespace Player
         {
             _canMove = false;
         }
-
-        #endregion
     }
 }

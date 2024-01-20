@@ -6,137 +6,147 @@ namespace Controllers
 {
     public class LevelManager : MonoBehaviour
     {
-        #region DELEGATE
+        #region Delegates and Events
 
         public delegate void LevelLoadHandler(Level levelData);
-
         public delegate void LevelStartHandler(Level levelData);
-
-        public delegate void LevelStageCompleteHandler(Level levelData, int stageIndex = 0);
-
+        public delegate void LevelStageCompleteHandler(Level levelData, int stageIndex);
         public delegate void LevelCompleteHandler(Level levelData);
-
         public delegate void LevelFailHandler(Level levelData);
 
-        #endregion
-
-        #region EVENTS
-
-        public static LevelLoadHandler onLevelLoad;
-
-        public static LevelStartHandler onLevelStart;
-
-        public static LevelStageCompleteHandler onLevelStageComplete;
-
-        public static LevelCompleteHandler onLevelComplete;
-
-        public static LevelFailHandler onLevelFail;
+        public static event LevelLoadHandler OnLevelLoad;
+        public static event LevelStartHandler OnLevelStart;
+        public static event LevelStageCompleteHandler OnLevelStageComplete;
+        public static event LevelCompleteHandler OnLevelComplete;
+        public static event LevelFailHandler OnLevelFail;
 
         #endregion
 
-        #region PUBLIC FIELDS / PROPS
+        #region Singleton
 
-        public static LevelManager instance { get; private set; }
-
-        #endregion
-
-        #region SERIALIZE PRIVATE FIELDS
-
-        [SerializeField] private LevelSource levelSource;
-
-        [SerializeField] private GameObject levelSpawnPoint;
-
-        [SerializeField] private int loopLevelsStartIndex = 1;
-
-        [SerializeField] private bool loopLevelGetRandom = true;
+        public static LevelManager Instance { get; private set; }
 
         #endregion
 
-        #region PRIVATE FIELDS
+        #region Serialized Fields
+
+        [SerializeField, Tooltip("The source of level data.")]
+        private LevelSource levelSource;
+
+        [SerializeField, Tooltip("The spawn point for levels.")]
+        private GameObject levelSpawnPoint;
+
+        [SerializeField, Tooltip("Index from where levels start looping.")]
+        private int loopLevelsStartIndex = 1;
+
+        [SerializeField, Tooltip("Whether to get random levels when looping.")]
+        private bool loopLevelGetRandom = true;
+
+        #endregion
+
+        #region Private Fields
 
         private GameObject _activeLevel;
 
         #endregion
 
-        #region PRIVATE METHODS
+        #region Private Methods
 
         private void CheckRepeatLevelIndex()
         {
-            if (loopLevelsStartIndex < levelSource.levelData.Length) return;
-            loopLevelsStartIndex = 0;
+            if (levelSource == null || levelSource.levelData.Length <= loopLevelsStartIndex)
+            {
+                loopLevelsStartIndex = 0;
+            }
         }
 
         private GameObject GetLevel()
         {
-            if (PlayerPrefsController.GetLevelIndex() >= levelSource.levelData.Length)
+            if (levelSource == null)
+            {
+                Debug.LogError("Level source is not assigned.");
+                return null;
+            }
+
+            int levelIndex = PlayerPrefsController.GetLevelIndex();
+            if (levelIndex >= levelSource.levelData.Length)
             {
                 if (loopLevelGetRandom)
                 {
-                    var levelIndex = Random.Range(loopLevelsStartIndex, levelSource.levelData.Length - 1);
+                    levelIndex = Random.Range(loopLevelsStartIndex, levelSource.levelData.Length);
                     PlayerPrefsController.SetLevelIndex(levelIndex);
                 }
             }
 
-            var level = levelSource.levelData[PlayerPrefsController.GetLevelIndex()];
-
+            var level = Instantiate(levelSource.levelData[levelIndex], levelSpawnPoint.transform, false);
             var levelData = level.GetComponent<Level>();
 
-            levelData.levelIndex = PlayerPrefsController.GetLevelIndex();
-            levelData.levelNumber = PlayerPrefsController.GetLevelNumber();
+            if (levelData != null)
+            {
+                levelData.levelIndex = levelIndex;
+                levelData.levelNumber = PlayerPrefsController.GetLevelNumber();
+            }
 
             return level;
         }
 
         #endregion
 
-        #region PUBLIC METHODS
+        #region Public Methods
 
-        
         public void LevelLoad()
         {
-            _activeLevel = Instantiate(GetLevel(), levelSpawnPoint.transform, false);
-            onLevelLoad?.Invoke(_activeLevel.GetComponent<Level>());
+            _activeLevel = GetLevel();
+            OnLevelLoad?.Invoke(_activeLevel.GetComponent<Level>());
         }
 
-        
         public void LevelStart()
         {
-            onLevelStart?.Invoke(_activeLevel.GetComponent<Level>());
+            OnLevelStart?.Invoke(_activeLevel.GetComponent<Level>());
         }
 
-        
         public void LevelStageComplete(int stageIndex = 0)
         {
-            onLevelStageComplete?.Invoke(_activeLevel.GetComponent<Level>(), stageIndex);
+            OnLevelStageComplete?.Invoke(_activeLevel.GetComponent<Level>(), stageIndex);
         }
 
-        
         public void LevelComplete()
         {
-            PlayerPrefsController.SetLevelIndex(PlayerPrefsController.GetLevelIndex() + 1);
+            int currentLevelIndex = PlayerPrefsController.GetLevelIndex();
+            PlayerPrefsController.SetLevelIndex(currentLevelIndex + 1);
 
-            PlayerPrefsController.SetLevelNumber(PlayerPrefsController.GetLevelNumber() + 1);
+            int currentLevelNumber = PlayerPrefsController.GetLevelNumber();
+            PlayerPrefsController.SetLevelNumber(currentLevelNumber + 1);
 
-
-            onLevelComplete?.Invoke(_activeLevel.GetComponent<Level>());
+            OnLevelComplete?.Invoke(_activeLevel.GetComponent<Level>());
         }
-        
+
         public void LevelFail()
         {
-            onLevelFail?.Invoke(_activeLevel.GetComponent<Level>());
+            OnLevelFail?.Invoke(_activeLevel.GetComponent<Level>());
         }
 
         #endregion
 
-        #region UNITY EVENT METHODS
+        #region Unity Event Methods
 
         private void Awake()
         {
-            CheckRepeatLevelIndex();
-            instance = this;
+            if (Instance == null)
+            {
+                Instance = this;
+                CheckRepeatLevelIndex();
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
 
-        private void Start() => LevelLoad();
+        private void Start()
+        {
+            LevelLoad();
+        }
 
         #endregion
     }
